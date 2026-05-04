@@ -17,6 +17,20 @@ def _assert_tableau_basis_matches_constraints(r: AnalyzeResponse) -> None:
         )
 
 
+def test_unicode_le_constraint_still_parses():
+    """≤ / Unicode minus should normalize so pasted models work."""
+    src = """
+maximize x + y
+subject to
+x + y ≤ 4
+x ≥ 0
+y ≥ 0
+"""
+    r = analyze_source(src)
+    assert r.ok
+    assert r.solve_status == "optimal"
+
+
 def test_classic_2d_max():
     src = """
 maximize 3 x + 2 y
@@ -255,7 +269,7 @@ x y
     assert r.error_context.get("line") == 3
 
 
-def test_variable_domains_inline_trigger_mip_not_implemented():
+def test_variable_domains_inline_small_milp_optimal():
     src = """
 maximize 3 x + 2 y
 subject to
@@ -263,14 +277,14 @@ x + y <= 4
 variables x: integer, y: continuous
 """
     r = analyze_source(AnalyzeRequest(source=src.strip(), problem_class="auto"))
-    assert not r.ok
-    assert r.error_code == "MIP_NOT_IMPLEMENTED"
-    assert r.error_context is not None
-    assert r.error_context.get("problem_class") == "milp"
-    assert r.error_context.get("is_mip") is True
-    diag = r.error_context.get("mip_diagnostics")
-    assert isinstance(diag, dict)
-    assert diag.get("mip_backend") == "stub"
+    assert r.ok
+    assert r.solve_status == "optimal"
+    assert r.problem is not None and r.problem.is_mip
+    assert abs((r.optimal_value or 0.0) - 12.0) < 1e-5
+    assert r.optimal_point is not None
+    assert abs(r.optimal_point["x"] - 4.0) < 1e-6 and abs(r.optimal_point["y"]) < 1e-6
+    diag = r.mip_diagnostics or {}
+    assert diag.get("mip_backend") == "scipy.milp"
 
 
 def test_variable_domains_block_parse_error_has_stable_code():
@@ -301,3 +315,67 @@ variables x integer
     r = analyze_source(AnalyzeRequest(source=src.strip(), problem_class="lp"))
     assert not r.ok
     assert r.error_code == "PROBLEM_CLASS_MISMATCH"
+
+
+def test_mip_2d_all_integer_emits_discrete_feasible_points():
+    src = """
+maximize x + y
+subject to
+x + y <= 4
+x >= 0
+y >= 0
+variables x integer, y integer
+"""
+    r = analyze_source(src)
+    assert r.ok
+    assert r.solve_status == "optimal"
+    assert len(r.mip_discrete_points_2d) == 15
+    assert r.geometry_note and "LP relaxation" in r.geometry_note
+
+
+def test_mip_2d_mixed_integer_continuous_has_no_lattice_points():
+    src = """
+maximize 3 x + 2 y
+subject to
+x + y <= 4
+variables x: integer, y: continuous
+"""
+    r = analyze_source(src)
+    assert r.ok
+    assert r.mip_discrete_points_2d == []
+
+
+def test_request_variable_domains_override_inline_to_integer():
+    src = """
+maximize x + y
+subject to
+x + y <= 4
+x >= 0
+y >= 0
+variables x continuous, y continuous
+"""
+    r = analyze_source(
+        AnalyzeRequest(
+            source=src.strip(),
+            variable_domains={"x": "integer"},
+            problem_class="auto",
+        )
+    )
+    assert r.ok
+    assert r.solve_status == "optimal"
+    assert abs((r.optimal_value or 0.0) - 4.0) < 1e-5
+    assert r.optimal_point is not None
+    assert r.optimal_point["x"] == float(round(r.optimal_point["x"]))
+    assert r.optimal_point["x"] + r.optimal_point["y"] <= 4.0 + 1e-5
+
+
+def test_unknown_variable_in_domain_request():
+    src = """
+maximize x
+subject to
+x <= 1
+x >= 0
+"""
+    r = analyze_source(AnalyzeRequest(source=src.strip(), variable_domains={"z": "integer"}))
+    assert not r.ok
+    assert r.error_code == "UNKNOWN_DOMAIN_VARIABLE"

@@ -32,4 +32,17 @@ describe("humanizeApiError", () => {
     const msg = humanizeApiError({});
     expect(msg).toContain("Request failed");
   });
+
+  it("maps UNKNOWN_DOMAIN_VARIABLE", () => {
+    const msg = humanizeApiError({
+      code: "UNKNOWN_DOMAIN_VARIABLE",
+      message: "variable_domains references unknown variable",
+    });
+    expect(msg).toContain("does not appear");
+  });
+
+  it("maps MIP_SOLVER_ERROR", () => {
+    const msg = humanizeApiError({ code: "MIP_SOLVER_ERROR", message: "err" });
+    expect(msg).toContain("mixed-integer");
+  });
 });

@@ -8,8 +8,9 @@ from backend.geometry import (
     order_polygon_ccw,
     vertices_2d_halfspaces,
 )
+from backend.mip_plot import discrete_feasible_points_2d
 from backend.model import LinprogMatrices, build_matrices, point_dict
-from backend.parser import ParseError, parse_lp_source
+from backend.parser import ParseError, merge_request_variable_domains, parse_lp_source
 from backend.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -18,7 +19,7 @@ from backend.schemas import (
     FeasibleRegion2D,
     ParsedProblemView,
 )
-from backend.solver import solve_lp, solve_mip
+from backend.solver import solve_dispatch
 from backend.tableau import TableauOptions, build_tableau_if_supported
 from backend.tableau_verify import verify_tableau_against_solver
 from backend.tutor_graphical import build_3d_vertex_tutor, build_graphical_tutor
@@ -95,6 +96,7 @@ def analyze_source(request: AnalyzeRequest | str) -> AnalyzeResponse:
     source = body.source
     try:
         parsed, plot_labels = parse_lp_source(source)
+        merge_request_variable_domains(parsed, body.variable_domains)
         mat = build_matrices(parsed)
     except ParseError as exc:
         return _error_response(
@@ -124,7 +126,7 @@ def analyze_source(request: AnalyzeRequest | str) -> AnalyzeResponse:
             hint="Set problem_class to `auto` or `milp`, or remove integer/binary domains.",
         )
 
-    solve = solve_mip(mat) if parsed.is_mip else solve_lp(mat)
+    solve = solve_dispatch(mat, is_mip=parsed.is_mip)
     if solve.error_code is not None:
         return _error_response(
             code=solve.error_code,
@@ -147,15 +149,23 @@ def analyze_source(request: AnalyzeRequest | str) -> AnalyzeResponse:
         constraint_labels=plot_labels,
     )
 
+    mip_diag = solve.diagnostics or {}
     resp = AnalyzeResponse(
         modeling_notes=list(parsed.modeling_notes),
         problem_class=inferred_problem_class,
         is_mip=parsed.is_mip,
         mip_diagnostics=solve.diagnostics,
+        mip_gap=mip_diag.get("mip_gap"),
+        mip_node_count=mip_diag.get("mip_node_count"),
+        mip_time_limit_hit=mip_diag.get("mip_time_limit_hit"),
         problem=problem,
         solve_status=solve.status,
         optimal_value=solve.fun if solve.status == "optimal" else None,
-        optimal_point=point_dict(mat, solve.x) if solve.status == "optimal" and solve.x is not None else None,
+        optimal_point=(
+            point_dict(mat, solve.x, snap_domains=parsed.is_mip)
+            if solve.status == "optimal" and solve.x is not None
+            else None
+        ),
         constraints_2d=_constraints_for_plot(mat, plot_labels),
     )
 
@@ -173,6 +183,13 @@ def analyze_source(request: AnalyzeRequest | str) -> AnalyzeResponse:
         if verts.shape[0] > 0:
             verts = order_polygon_ccw(verts)
         resp.feasible_region = FeasibleRegion2D(vertices=[(float(p[0]), float(p[1])) for p in verts])
+        if parsed.is_mip:
+            resp.mip_discrete_points_2d = discrete_feasible_points_2d(mat, A_all, b_all, verts)
+            if resp.mip_discrete_points_2d:
+                note = (
+                    "Shaded region: LP relaxation; dots: feasible integer/binary points in this slice."
+                )
+                resp.geometry_note = (resp.geometry_note + "; " if resp.geometry_note else "") + note
     elif n == 3 and A_all.size > 0 and solve.status == "optimal" and solve.x is not None:
         v3d, note = geometry_3d_vertices(A_all, b_all, solve.x)
         if v3d is not None:
@@ -186,12 +203,18 @@ def analyze_source(request: AnalyzeRequest | str) -> AnalyzeResponse:
         resp.geometry_note = "Geometry sketch is limited to 3D; solver still runs in higher dimension."
 
     verts_np = np.zeros((0, 2))
-    if n == 2 and A_all.size > 0:
+    if n == 2 and A_all.size > 0 and not parsed.is_mip:
         verts_np = vertices_2d_halfspaces(A_all, b_all)
         if verts_np.shape[0] > 0:
             verts_np = order_polygon_ccw(verts_np)
         resp.tutor_steps = build_graphical_tutor(mat, solve, verts_np)
-    elif n == 3 and A_all.size > 0 and solve.status == "optimal" and solve.x is not None:
+    elif (
+        n == 3
+        and A_all.size > 0
+        and solve.status == "optimal"
+        and solve.x is not None
+        and not parsed.is_mip
+    ):
         fr = resp.feasible_region
         v3: list[list[float]] = []
         if isinstance(fr, dict) and fr.get("kind") == "polyhedron_3d":
@@ -199,7 +222,7 @@ def analyze_source(request: AnalyzeRequest | str) -> AnalyzeResponse:
         if v3:
             resp.tutor_steps = build_3d_vertex_tutor(mat, solve, np.asarray(v3, dtype=float))
 
-    if solve.status == "optimal":
+    if solve.status == "optimal" and not parsed.is_mip:
         topts = TableauOptions(
             tableau_mode=body.tableau_mode,
             use_blands_rule=body.use_blands_rule,
@@ -230,6 +253,12 @@ def analyze_source(request: AnalyzeRequest | str) -> AnalyzeResponse:
             resp.tableau_status = "not_supported_yet"
             if tw is None and tstat:
                 resp.tableau_message = tstat
+    elif solve.status == "optimal" and parsed.is_mip:
+        resp.tableau_status = "skipped"
+        resp.tableau_message = (
+            "Tableau walkthrough applies to continuous linear programs; "
+            "mixed-integer models use branch-and-bound (or similar), not this primal simplex tableau."
+        )
     else:
         resp.tableau_status = "skipped"
 

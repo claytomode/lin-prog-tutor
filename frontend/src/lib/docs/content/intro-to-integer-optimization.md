@@ -108,4 +108,6 @@ y_b binary
 y_c binary
 ```
 
-If you see a `MIP_NOT_IMPLEMENTED` message, that is expected in the current scaffold stage and indicates the integer solver backend is the next implementation step.
+For how variable domains and strict inequalities interact with the API, see [Modeling pitfalls](/docs/modeling-pitfalls) and the [Error code glossary](/docs/error-code-glossary).
+
+Integer and mixed-integer models in the **Solver** are handled by the API using `scipy.optimize.milp` (HiGHS as the underlying MILP engine). You should get a discrete optimum when the model is feasible and bounded. If the solver reports an internal failure, the UI shows a `MIP_SOLVER_ERROR` hint.

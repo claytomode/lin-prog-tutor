@@ -16,7 +16,7 @@
   import { docExamples } from "$lib/lp/doc-examples.js";
   import type { StudyPreset } from "$lib/lp/constants.js";
   import { isPolyhedron3d } from "$lib/lp/feasible.js";
-  import type { AnalyzeResponse, TableauMode } from "$lib/lp/types.js";
+  import type { AnalyzeResponse, ProblemClass, TableauMode, VariableDomain } from "$lib/lp/types.js";
 
   let source = $state(defaultSource);
   let loading = $state(false);
@@ -28,6 +28,9 @@
   let useBlandsRule = $state(false);
   let bigMText = $state("");
   let studyPreset = $state<StudyPreset>("default");
+  let problemClass = $state<ProblemClass>("auto");
+  let variableDomains = $state<Record<string, VariableDomain>>({});
+  let domainVariableNames = $state<string[]>([]);
   let presetHydrated = $state(false);
   let solutionHeadingEl = $state<HTMLHeadingElement | null>(null);
   let lastAppliedQuery = $state<string | null>(null);
@@ -85,15 +88,22 @@
     tableauStep = 0;
     try {
       const big_m_value = parseBigM();
+      const payload: Record<string, unknown> = {
+        source,
+        problem_class: problemClass,
+        tableau_mode: tableauMode,
+        use_blands_rule: useBlandsRule,
+        big_m_value,
+      };
+      if (domainVariableNames.length > 0) {
+        payload.variable_domains = Object.fromEntries(
+          domainVariableNames.map((v) => [v, variableDomains[v] ?? "continuous"]),
+        );
+      }
       const res = await fetch("/api/lp/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source,
-          tableau_mode: tableauMode,
-          use_blands_rule: useBlandsRule,
-          big_m_value,
-        }),
+        body: JSON.stringify(payload),
       });
       let raw: unknown;
       try {
@@ -134,6 +144,13 @@
         return;
       }
       data = json;
+      if (json.problem) {
+        domainVariableNames = json.problem.variables;
+        const dom = json.problem.variable_domains ?? {};
+        variableDomains = Object.fromEntries(
+          json.problem.variables.map((v) => [v, dom[v] ?? "continuous"]),
+        ) as Record<string, VariableDomain>;
+      }
       await tick();
       solutionHeadingEl?.focus();
     } catch (e) {
@@ -165,8 +182,15 @@
         bind:useBlandsRule
         bind:bigMText
         bind:studyPreset
+        bind:problemClass
+        bind:variableDomains
+        bind:domainVariableNames
         onAnalyze={analyze}
-        onResetExample={() => (source = defaultSource)}
+        onResetExample={() => {
+          source = defaultSource;
+          variableDomains = {};
+          domainVariableNames = [];
+        }}
         onPrintWorksheet={printWorksheet}
       />
 
@@ -181,11 +205,11 @@
           <ModelingNotes notes={data.modeling_notes ?? []} />
         {/if}
 
-        {#if !(isPolyhedron3d(data) && skipPlot3d)}
+        {#if !(isPolyhedron3d(data) && skipPlot3d) && !data.problem?.is_mip}
           <GraphicalTutor steps={data.tutor_steps} bind:activeStep />
         {/if}
 
-        {#if data.tableau_walkthrough}
+        {#if data.tableau_walkthrough && !data.problem?.is_mip}
           <TableauWalkthrough
             walkthrough={data.tableau_walkthrough}
             {compactTableau}

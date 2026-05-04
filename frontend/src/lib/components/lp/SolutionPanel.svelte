@@ -12,6 +12,17 @@
 
 <section class="panel solution">
   <h2 class="panel-title" tabindex="-1" bind:this={solutionHeadingEl}>Solution</h2>
+  {#if data.problem_class || data.is_mip != null}
+    <p class="small meta-row">
+      {#if data.problem_class}
+        Class: <code>{data.problem_class}</code>
+      {/if}
+      {#if data.is_mip != null}
+        {#if data.problem_class}&nbsp;&middot;&nbsp;{/if}
+        MIP: <code>{data.is_mip ? "yes" : "no"}</code>
+      {/if}
+    </p>
+  {/if}
   <p>
     Status: <code>{data.solve_status}</code>
     {#if data.optimal_value != null}
@@ -25,6 +36,33 @@
         <code>{k} = {v.toFixed(6)}</code>
         &nbsp;
       {/each}
+    </p>
+  {/if}
+  {#if data.is_mip && data.mip_diagnostics && Object.keys(data.mip_diagnostics).length > 0}
+    <p class="muted small mip-diag">
+      MIP diagnostics:
+      <code>{JSON.stringify(data.mip_diagnostics)}</code>
+    </p>
+  {/if}
+  {#if data.mip_gap != null || data.mip_node_count != null || data.mip_time_limit_hit != null}
+    <p class="muted small mip-meta">
+      {#if data.mip_gap != null}
+        Gap: <code>{data.mip_gap}</code>
+      {/if}
+      {#if data.mip_node_count != null}
+        {#if data.mip_gap != null}&nbsp;&middot;&nbsp;{/if}
+        Nodes: <code>{data.mip_node_count}</code>
+      {/if}
+      {#if data.mip_time_limit_hit != null}
+        {#if data.mip_gap != null || data.mip_node_count != null}&nbsp;&middot;&nbsp;{/if}
+        Time limit: <code>{data.mip_time_limit_hit ? "hit" : "no"}</code>
+      {/if}
+    </p>
+  {/if}
+  {#if data.problem?.is_mip}
+    <p class="muted small mip-note">
+      Graphical two-/three-dimensional tutor steps and the simplex tableau follow <strong>continuous</strong> LP
+      pedagogy. They are hidden for mixed-integer models until dedicated MIP tutor paths exist.
     </p>
   {/if}
   {#if data.tableau_status === "ok" && data.tableau_verified != null}
@@ -70,6 +108,18 @@
   }
   .solution :global(p) {
     margin: 0.35rem 0 0;
+  }
+  .meta-row {
+    margin: 0 0 0.25rem;
+  }
+  .mip-diag code,
+  .mip-meta code {
+    font-size: 0.82em;
+    word-break: break-word;
+  }
+  .mip-note {
+    max-width: 44rem;
+    margin-top: 0.65rem !important;
   }
   .tableau-verify {
     margin: 0.65rem 0 0;

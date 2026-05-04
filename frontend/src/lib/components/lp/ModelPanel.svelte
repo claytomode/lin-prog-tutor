@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { resolveRoute } from "$app/paths";
   import type { StudyPreset } from "$lib/lp/constants.js";
-  import type { TableauMode } from "$lib/lp/types.js";
+  import type { ProblemClass, TableauMode, VariableDomain } from "$lib/lp/types.js";
 
   let {
     source = $bindable(),
@@ -10,6 +11,9 @@
     useBlandsRule = $bindable(false),
     bigMText = $bindable(""),
     studyPreset = $bindable<StudyPreset>("default"),
+    problemClass = $bindable<ProblemClass>("auto"),
+    variableDomains = $bindable<Record<string, VariableDomain>>({}),
+    domainVariableNames = $bindable<string[]>([]),
     onAnalyze,
     onResetExample,
     onPrintWorksheet,
@@ -21,6 +25,9 @@
     useBlandsRule: boolean;
     bigMText: string;
     studyPreset: StudyPreset;
+    problemClass: ProblemClass;
+    variableDomains: Record<string, VariableDomain>;
+    domainVariableNames: string[];
     onAnalyze: () => void;
     onResetExample: () => void;
     onPrintWorksheet: () => void;
@@ -32,8 +39,41 @@
   <label for="src">Source</label>
   <textarea id="src" bind:value={source} rows="14" spellcheck="false"></textarea>
   <details class="solver-details">
-    <summary>Tableau &amp; solver options</summary>
+    <summary>Problem class, domains, tableau</summary>
     <div class="solver-details-body">
+      <label for="prob-class">Problem class</label>
+      <select id="prob-class" bind:value={problemClass}>
+        <option value="auto">Auto (infer from domains)</option>
+        <option value="lp">Continuous LP</option>
+        <option value="milp">MILP (integer/binary allowed)</option>
+      </select>
+      <p class="muted small domain-hint">
+        Declare domains in the text (<code>variables:</code> block) or set them below after an
+        analyze. Client domains override inline declarations for that request.
+      </p>
+      {#if domainVariableNames.length > 0}
+        <p class="domain-list-label">Variable domains (UI)</p>
+        <div class="domain-rows">
+          {#each domainVariableNames as v (v)}
+            <div class="domain-row">
+              <span class="domain-var">{v}</span>
+              <select
+                id={"dom-" + v}
+                class="domain-select"
+                value={variableDomains[v] ?? "continuous"}
+                onchange={(e) => {
+                  const val = (e.currentTarget as HTMLSelectElement).value as VariableDomain;
+                  variableDomains = { ...variableDomains, [v]: val };
+                }}
+              >
+                <option value="continuous">continuous</option>
+                <option value="integer">integer</option>
+                <option value="binary">binary</option>
+              </select>
+            </div>
+          {/each}
+        </div>
+      {/if}
       <label for="tab-mode">Tableau mode</label>
       <select id="tab-mode" bind:value={tableauMode}>
         <option value="auto">Auto</option>
@@ -93,6 +133,9 @@
   </div>
   {#if err}
     <p class="error">{err}</p>
+    <p class="muted small err-docs">
+      <a href={resolveRoute("/docs/[slug]", { slug: "error-code-glossary" })}>Error code glossary</a>
+    </p>
   {/if}
 </section>
 
@@ -295,6 +338,52 @@
   }
   .preset-hint {
     max-width: 36rem;
+  }
+  .domain-hint {
+    margin: 0;
+    max-width: 36rem;
+  }
+  .domain-hint code {
+    font-size: 0.84em;
+  }
+  .domain-list-label {
+    margin: 0.35rem 0 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+  .domain-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .domain-row {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+  }
+  .domain-var {
+    font-family: var(--font-mono);
+    font-size: 0.84rem;
+    min-width: 4rem;
+  }
+  .domain-select {
+    font-family: var(--font-sans);
+    font-size: 0.88rem;
+    padding: 0.35rem 0.45rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+    max-width: 12rem;
+  }
+  .err-docs {
+    margin: 0.45rem 0 0;
+  }
+  .err-docs a {
+    color: var(--color-accent);
+    font-weight: 600;
   }
   .spinner {
     width: 1.65rem;

@@ -29,8 +29,12 @@ export function humanizeApiError({ code, message, hint }: HumanizeApiErrorInput)
       "A variable domain was declared more than once. Keep one declaration per variable.",
     PROBLEM_CLASS_MISMATCH:
       "Problem class is set to LP, but integer/binary variable domains were declared.",
+    UNKNOWN_DOMAIN_VARIABLE:
+      "The domain list names a variable that does not appear in the objective or constraints.",
     MIP_NOT_IMPLEMENTED:
-      "Integer/binary models are recognized, but MIP solving is not implemented yet in this build.",
+      "The API returned MIP_NOT_IMPLEMENTED. Restart the dev servers from the project root (`bun run dev`) so the backend loads the SciPy MILP solver.",
+    MIP_SOLVER_ERROR:
+      "The mixed-integer solver hit an internal error. Try simplifying the model or check constraints for inconsistency.",
     MODEL_ERROR: "The model could not be processed. Check the formulation and try again.",
     PARSE_ERROR: "The LP source could not be parsed. Check syntax and try again.",
   };

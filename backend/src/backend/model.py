@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from backend.parser import ParsedLP, VarDomain
+from backend.parser import ParsedLP, VarDomain, declared_variables
 
 
 @dataclass
@@ -20,15 +20,8 @@ class LinprogMatrices:
     original_maximize: bool
 
 
-def _collect_vars(parsed: ParsedLP) -> list[str]:
-    names: set[str] = set(parsed.objective.keys())
-    for rc in parsed.constraints:
-        names.update(rc.coeffs.keys())
-    return sorted(names)
-
-
 def build_matrices(parsed: ParsedLP) -> LinprogMatrices:
-    var_names = _collect_vars(parsed)
+    var_names = declared_variables(parsed)
     if not var_names:
         raise ValueError("no variables")
     n = len(var_names)
@@ -82,5 +75,12 @@ def build_matrices(parsed: ParsedLP) -> LinprogMatrices:
     )
 
 
-def point_dict(mat: LinprogMatrices, x: np.ndarray) -> dict[str, float]:
-    return {v: float(x[i]) for i, v in enumerate(mat.var_names)}
+def point_dict(mat: LinprogMatrices, x: np.ndarray, *, snap_domains: bool = False) -> dict[str, float]:
+    out: dict[str, float] = {}
+    for i, v in enumerate(mat.var_names):
+        val = float(x[i])
+        dom = mat.var_domains.get(v, "continuous")
+        if snap_domains and dom in ("integer", "binary"):
+            val = float(round(val))
+        out[v] = val
+    return out

@@ -197,10 +197,44 @@ def _parse_inline_declarations(spec: str) -> list[str]:
     return [part.strip() for part in t.split(",") if part.strip()]
 
 
+def declared_variables(parsed: ParsedLP) -> list[str]:
+    """Variables appearing in the objective or any constraint, sorted lexicographically."""
+    names: set[str] = set(parsed.objective.keys())
+    for rc in parsed.constraints:
+        names.update(rc.coeffs.keys())
+    return sorted(names)
+
+
+def merge_request_variable_domains(parsed: ParsedLP, domains: dict[str, VarDomain] | None) -> None:
+    """Apply client-supplied domains; overrides declarations embedded in the source text."""
+    if not domains:
+        return
+    allowed = set(declared_variables(parsed))
+    for raw_k, dom in domains.items():
+        k = raw_k.strip().lower()
+        if k not in allowed:
+            raise ParseError(
+                f"variable_domains references unknown variable {raw_k!r}",
+                code="UNKNOWN_DOMAIN_VARIABLE",
+                hint="Only variables that appear in the objective or constraints may be listed.",
+                context={"variable": raw_k},
+            )
+        parsed.variable_domains[k] = dom
+
+
+def _normalize_unicode_tokens(line: str) -> str:
+    """Map common Unicode math symbols to ASCII the parser accepts (e.g. pasted from Word/PDF)."""
+    return (
+        line.replace("\u2264", "<=")  # ≤
+        .replace("\u2265", ">=")  # ≥
+        .replace("\u2212", "-")  # −
+    )
+
+
 def parse_lp_source(source: str) -> tuple[ParsedLP, list[str]]:
     lines: list[str] = []
     for raw in source.splitlines():
-        line = raw.split("#", 1)[0].strip()
+        line = _normalize_unicode_tokens(raw.split("#", 1)[0].strip())
         if line:
             lines.append(line)
 

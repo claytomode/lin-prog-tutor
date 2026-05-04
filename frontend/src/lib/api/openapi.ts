@@ -42,6 +42,8 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** VariableDomain */
+        VariableDomain: "continuous" | "integer" | "binary";
         /** AnalyzeRequest */
         AnalyzeRequest: {
             /**
@@ -49,6 +51,20 @@ export interface components {
              * @description LP problem text (DSL)
              */
             source: string;
+            /**
+             * Problem Class
+             * @description Request LP vs MILP handling; auto infers from domains.
+             * @default auto
+             * @enum {string}
+             */
+            problem_class: "auto" | "lp" | "milp";
+            /**
+             * Variable Domains
+             * @description Optional client domains merged after parsing (override source declarations).
+             */
+            variable_domains?: {
+                [key: string]: components["schemas"]["VariableDomain"];
+            } | null;
             /**
              * Tableau Mode
              * @description Tableau pedagogy: auto (default paths), primal two-phase, dual simplex, or big-M.
@@ -96,6 +112,23 @@ export interface components {
             } | null;
             /** Modeling Notes */
             modeling_notes?: string[];
+            /**
+             * Problem Class
+             * @enum {string}
+             */
+            problem_class?: ("lp" | "milp") | null;
+            /** Is Mip */
+            is_mip?: boolean | null;
+            /** MIP diagnostics placeholder */
+            mip_diagnostics?: {
+                [key: string]: unknown;
+            } | null;
+            /** MIP optimality gap when reported */
+            mip_gap?: number | null;
+            /** Branch-and-bound node count when reported */
+            mip_node_count?: number | null;
+            /** Whether the MIP solver stopped on a time limit */
+            mip_time_limit_hit?: boolean | null;
             problem?: components["schemas"]["ParsedProblemView"] | null;
             /** Solve Status */
             solve_status?: ("optimal" | "infeasible" | "unbounded" | "not_attempted") | null;
@@ -114,6 +147,11 @@ export interface components {
             feasible_region?: components["schemas"]["FeasibleRegion1D"] | components["schemas"]["FeasibleRegion2D"] | {
                 [key: string]: unknown;
             } | null;
+            /**
+             * MIP Discrete Points 2D
+             * @description For 2-variable MILP with both axes discrete: feasible lattice points.
+             */
+            mip_discrete_points_2d?: [number, number][];
             /** Geometry Note */
             geometry_note?: string | null;
             /**
@@ -205,6 +243,17 @@ export interface components {
             sense: "maximize" | "minimize";
             /** Variables */
             variables: string[];
+            /** Variable Domains */
+            variable_domains: {
+                [key: string]: components["schemas"]["VariableDomain"];
+            };
+            /**
+             * Problem Class
+             * @enum {string}
+             */
+            problem_class: "lp" | "milp";
+            /** Is Mip */
+            is_mip: boolean;
             /** Objective */
             objective: {
                 [key: string]: number;

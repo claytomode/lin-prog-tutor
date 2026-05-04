@@ -47,6 +47,7 @@ export function hasFeasibleSetSketch(
 export function squareView(
   verts: [number, number][] | undefined,
   opt: { x: number; y: number } | undefined,
+  extraPoints?: [number, number][],
 ): { xrange: [number, number]; yrange: [number, number] } {
   let minx = Infinity;
   let maxx = -Infinity;
@@ -59,8 +60,9 @@ export function squareView(
     maxy = Math.max(maxy, y);
   };
   for (const p of verts ?? []) use(p[0], p[1]);
+  for (const p of extraPoints ?? []) use(p[0], p[1]);
   if (opt) use(opt.x, opt.y);
-  if ((verts?.length ?? 0) === 0 && !opt) {
+  if ((verts?.length ?? 0) === 0 && !opt && (extraPoints?.length ?? 0) === 0) {
     return { xrange: [-0.25, 4.25], yrange: [-0.25, 4.25] };
   }
   use(0, 0);
@@ -120,6 +122,10 @@ export function plotObjectiveCaption(d: AnalyzeResponse | null): string | null {
     const f0 = Number.isInteger(c0) ? String(c0) : String(Math.round(c0 * 1000) / 1000);
     const f1 = Number.isInteger(c1) ? String(c1) : String(Math.round(c1 * 1000) / 1000);
     const lin = `${f0}·${v0} + ${f1}·${v1}`;
+    const dots = (d.mip_discrete_points_2d?.length ?? 0) > 0;
+    if (d.is_mip && dots) {
+      return `Shaded region: LP relaxation; open circles: feasible integer/binary (${v0}, ${v1}). Arrow: objective direction in that relaxation (∇f or −∇f), not the integer hull. The MILP optimum is one of the circles here—you cannot rely on “solve the LP and round” in general.`;
+    }
     if (d.problem.sense === "minimize") {
       return `Linear objective ${lin}. Arrow shows −∇f = (−${f0}, −${f1}) — steepest descent in the plane.`;
     }

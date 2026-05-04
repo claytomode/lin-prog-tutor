@@ -5,6 +5,9 @@ type Schemas = components["schemas"];
 export type AnalyzeRequest = Schemas["AnalyzeRequest"];
 export type AnalyzeResponse = Schemas["AnalyzeResponse"];
 
+export type ProblemClass = AnalyzeRequest["problem_class"];
+export type VariableDomain = Schemas["VariableDomain"];
+
 export type TableauMode = AnalyzeRequest["tableau_mode"];
 export type TutorStep = Schemas["TutorStep"];
 export type Feasible2D = Schemas["FeasibleRegion2D"];

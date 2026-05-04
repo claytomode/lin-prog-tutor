@@ -16,6 +16,10 @@ class AnalyzeRequest(BaseModel):
         "auto",
         description="Requested problem class. Use auto to infer LP vs MILP from variable domains.",
     )
+    variable_domains: dict[str, VariableDomain] | None = Field(
+        None,
+        description="Optional domains from the client; merged after parsing and override inline declarations.",
+    )
     tableau_mode: TableauMode = Field(
         "auto",
         description="Tableau pedagogy: auto (default paths), primal two-phase, dual simplex, or big-M.",
@@ -105,12 +109,22 @@ class AnalyzeResponse(BaseModel):
         None,
         description="Optional diagnostics placeholder for MIP solver-specific details.",
     )
+    mip_gap: float | None = Field(None, description="Optimality gap when MIP solver reports it.")
+    mip_node_count: int | None = Field(None, description="Branch-and-bound node count when available.")
+    mip_time_limit_hit: bool | None = Field(
+        None,
+        description="True if the MIP solver stopped due to a time limit.",
+    )
     problem: ParsedProblemView | None = None
     solve_status: Literal["optimal", "infeasible", "unbounded", "not_attempted"] | None = None
     optimal_value: float | None = None
     optimal_point: dict[str, float] | None = None
     constraints_2d: list[ConstraintPlot2D] = []
     feasible_region: FeasibleRegion1D | FeasibleRegion2D | dict[str, Any] | None = None
+    mip_discrete_points_2d: list[tuple[float, float]] = Field(
+        default_factory=list,
+        description="For 2-variable MILP with both axes discrete: lattice points feasible for Ax<=b.",
+    )
     geometry_note: str | None = None
     tutor_steps: list[TutorStep] = []
     tableau_walkthrough: TableauWalkthrough | None = None

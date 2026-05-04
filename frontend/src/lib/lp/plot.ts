@@ -451,9 +451,30 @@ export async function drawPlot(
     };
   }
 
-  const { xrange, yrange } = squareView(verts2d, opt2d);
+  const discrete2d =
+    Array.isArray(payload.mip_discrete_points_2d) && payload.mip_discrete_points_2d.length > 0
+      ? (payload.mip_discrete_points_2d as [number, number][])
+      : undefined;
+
+  const { xrange, yrange } = squareView(verts2d, opt2d, discrete2d);
   const span = Math.max(xrange[1] - xrange[0], yrange[1] - yrange[0]);
   const lineSpan = span * 0.55 + 0.25;
+
+  let grad2d: { hx: number; hy: number; label: string } | null = null;
+  if (payload.problem && nVar === 2) {
+    const [gv0, gv1] = payload.problem.variables;
+    const ox = payload.problem.objective[gv0] ?? 0;
+    const oy = payload.problem.objective[gv1] ?? 0;
+    const maximize = payload.problem.sense === "maximize";
+    const dx = maximize ? ox : -ox;
+    const dy = maximize ? oy : -oy;
+    const norm = Math.hypot(dx, dy) || 1;
+    const len = span * 0.36;
+    const hx = (dx / norm) * len;
+    const hy = (dy / norm) * len;
+    const label = maximize ? "∇f" : "−∇f";
+    grad2d = { hx, hy, label };
+  }
 
   if (verts2d && verts2d.length >= 2) {
     const vx = verts2d.map((p) => p[0]);
@@ -468,7 +489,8 @@ export async function drawPlot(
       mode: "lines",
       ...(canFill ? { fill: "toself" as const, fillcolor: th.feasibleFill } : {}),
       line: { color: th.feasibleLine, width: 2 },
-      name: "Feasible set",
+      name:
+        discrete2d && payload.is_mip === true ? "LP relaxation" : "Feasible set",
       hoverinfo: "skip",
       x: vx,
       y: vy,
@@ -477,6 +499,38 @@ export async function drawPlot(
 
   const xLab = payload.problem?.variables[0] ?? "x";
   const yLab = payload.problem?.variables[1] ?? "y";
+
+  if (discrete2d && discrete2d.length > 0) {
+    traces.push({
+      type: "scatter",
+      mode: "markers",
+      marker: {
+        size: 9,
+        color: th.feasibleLine,
+        symbol: "circle-open",
+        line: { width: 2 },
+      },
+      name: "Discrete feasible",
+      hovertemplate: `${xLab}=%{x:.6g}<br>${yLab}=%{y:.6g}<extra></extra>`,
+      x: discrete2d.map((p) => p[0]),
+      y: discrete2d.map((p) => p[1]),
+    });
+  }
+
+  /** Line covers most of the shaft; a short annotation finishes at the tip with the arrowhead (Plotly draws the head on that segment). */
+  const gradShaftEnd = 0.82;
+  if (grad2d) {
+    traces.push({
+      type: "scatter",
+      mode: "lines",
+      x: [0, gradShaftEnd * grad2d.hx],
+      y: [0, gradShaftEnd * grad2d.hy],
+      line: { color: th.objective, width: 4, simplify: false },
+      name: grad2d.label,
+      hoverinfo: "skip",
+    });
+  }
+
   for (const c of payload.constraints_2d) {
     const xs: number[] = [];
     const ys: number[] = [];
@@ -551,41 +605,30 @@ export async function drawPlot(
   }
 
   const annotations: object[] = [];
-  if (payload.problem && payload.problem.variables.length === 2) {
-    const [v0, v1] = payload.problem.variables;
-    const ox = payload.problem.objective[v0] ?? 0;
-    const oy = payload.problem.objective[v1] ?? 0;
-    const maximize = payload.problem.sense === "maximize";
-    const dx = maximize ? ox : -ox;
-    const dy = maximize ? oy : -oy;
-    const norm = Math.hypot(dx, dy) || 1;
-    const len = span * 0.36;
-    const hx = (dx / norm) * len;
-    const hy = (dy / norm) * len;
-    const label = maximize ? "∇f" : "−∇f";
+  if (grad2d) {
     annotations.push({
-      x: hx,
-      y: hy,
-      ax: 0,
-      ay: 0,
+      x: grad2d.hx,
+      y: grad2d.hy,
+      ax: gradShaftEnd * grad2d.hx,
+      ay: gradShaftEnd * grad2d.hy,
       xref: "x",
       yref: "y",
       axref: "x",
       ayref: "y",
       showarrow: true,
       arrowhead: 3,
-      arrowsize: 1.35,
-      arrowwidth: 2.25,
+      arrowsize: 2.75,
+      arrowwidth: 5,
       arrowcolor: th.objective,
       text: "",
       opacity: 1,
     });
     annotations.push({
-      x: hx,
-      y: hy,
+      x: grad2d.hx,
+      y: grad2d.hy,
       xref: "x",
       yref: "y",
-      text: label,
+      text: grad2d.label,
       showarrow: false,
       xanchor: "left",
       yanchor: "middle",
