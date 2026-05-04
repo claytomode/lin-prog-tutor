@@ -29,4 +29,4 @@ def health() -> dict[str, str]:
 
 @app.post("/api/lp/analyze", response_model=AnalyzeResponse)
 def analyze(body: AnalyzeRequest) -> AnalyzeResponse:
-    return analyze_source(body.source)
+    return analyze_source(body)

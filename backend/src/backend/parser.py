@@ -4,7 +4,10 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal
 
-Sense = Literal["<=", ">=", "="]
+Sense = Literal["<=", ">=", "<", ">", "="]
+
+# Closed-form relaxation for strict inequalities (see modeling_notes in API).
+STRICT_EPS: float = 1e-6
 ObjSense = Literal["maximize", "minimize"]
 
 
@@ -25,6 +28,7 @@ class ParsedLP:
     objective_sense: ObjSense
     objective: dict[str, float]
     constraints: list[RawConstraint] = field(default_factory=list)
+    modeling_notes: list[str] = field(default_factory=list)
 
 
 _TERM = re.compile(
@@ -41,7 +45,9 @@ def _merge_coeff(dst: dict[str, float], var: str, c: float) -> None:
 
 def parse_linear(expr: str) -> tuple[dict[str, float], float]:
     """Parse linear expression into (variable_coeffs, constant_term)."""
-    s = re.sub(r"\s+", "", expr.strip().lower())
+    t = expr.strip().lower()
+    t = re.sub(r",\s*", " ", t)
+    s = re.sub(r"\s+", "", t)
     if not s:
         raise ParseError("empty expression")
     if re.search(r"[\^*/]", s):
@@ -69,11 +75,11 @@ def parse_linear(expr: str) -> tuple[dict[str, float], float]:
 
 
 def _split_constraint(line: str) -> tuple[str, Sense, str]:
-    m = re.search(r"(<=|>=|=)", line)
+    m = re.search(r"(<=|>=|<|>|=)", line)
     if not m:
         raise ParseError(f"missing comparator in constraint: {line!r}")
     op = m.group(1)
-    assert op in ("<=", ">=", "=")
+    assert op in ("<=", ">=", "<", ">", "=")
     left = line[: m.start()].strip()
     right = line[m.end() :].strip()
     if not left or not right:
@@ -92,10 +98,16 @@ def _normalize_constraint(left: str, sense: Sense, right: str, label: str) -> Ra
     k0 = lk - rk
     if sense == "<=":
         return RawConstraint(coeffs=coeffs, rhs=-k0, sense="<=", label=label)
+    if sense == "<":
+        return RawConstraint(coeffs=coeffs, rhs=-k0 - STRICT_EPS, sense="<=", label=label)
     if sense == ">=":
         for v in list(coeffs.keys()):
             coeffs[v] = -coeffs[v]
         return RawConstraint(coeffs=coeffs, rhs=k0, sense="<=", label=label)
+    if sense == ">":
+        for v in list(coeffs.keys()):
+            coeffs[v] = -coeffs[v]
+        return RawConstraint(coeffs=coeffs, rhs=k0 - STRICT_EPS, sense="<=", label=label)
     if sense == "=":
         return RawConstraint(coeffs=coeffs, rhs=-k0, sense="=", label=label)
     raise ParseError("unknown sense")
@@ -139,29 +151,53 @@ def parse_lp_source(source: str) -> tuple[ParsedLP, list[str]]:
     else:
         raise ParseError("invalid objective line")
 
-    oc, _ok = parse_linear(expr)
+    try:
+        oc, _ok = parse_linear(expr)
+    except ParseError as exc:
+        raise ParseError(f"line {obj_line_idx + 1} (objective): {exc}") from exc
     if not oc:
-        raise ParseError("objective must contain at least one variable")
+        raise ParseError(f"line {obj_line_idx + 1} (objective): must contain at least one variable")
 
     subj_idx = None
     for j in range(obj_line_idx + 1, len(lines)):
-        if re.fullmatch(r"subject\s+to|s\.t\.|st", lines[j].lower()):
+        if re.fullmatch(r"(subject\s+to|s\.t\.|st)\s*:?", lines[j].lower()):
             subj_idx = j
             break
     if subj_idx is None:
-        raise ParseError('expected "subject to" after objective')
+        raise ParseError('expected "subject to" (optional colon) after objective')
 
     constraints: list[RawConstraint] = []
     plot_labels: list[str] = []
 
-    for line in lines[subj_idx + 1 :]:
+    modeling_notes: list[str] = []
+    used_strict = False
+    for line_no, line in enumerate(lines[subj_idx + 1 :], start=subj_idx + 2):
         low = line.lower()
         if low.startswith("variables") or low.startswith("vars"):
             continue
-        left, sense, right = _split_constraint(line)
-        raw_label = line.strip()
-        rc = _normalize_constraint(left, sense, right, raw_label)
+        raw_label = line.strip().rstrip(";")
+        if not raw_label:
+            continue
+        try:
+            left, sense, right = _split_constraint(raw_label)
+            rc = _normalize_constraint(left, sense, right, raw_label)
+        except ParseError as exc:
+            raise ParseError(f"line {line_no} ({raw_label!r}): {exc}") from exc
+        if sense in ("<", ">"):
+            used_strict = True
         constraints.append(rc)
         plot_labels.append(raw_label)
+    if used_strict:
+        modeling_notes.append(
+            f"Strict inequalities were relaxed with epsilon={STRICT_EPS} for a closed feasible model."
+        )
 
-    return ParsedLP(objective_sense=objective_sense, objective=oc, constraints=constraints), plot_labels
+    return (
+        ParsedLP(
+            objective_sense=objective_sense,
+            objective=oc,
+            constraints=constraints,
+            modeling_notes=modeling_notes,
+        ),
+        plot_labels,
+    )

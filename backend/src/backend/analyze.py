@@ -11,14 +11,16 @@ from backend.geometry import (
 from backend.model import LinprogMatrices, build_matrices, point_dict, solve_lp
 from backend.parser import ParseError, parse_lp_source
 from backend.schemas import (
+    AnalyzeRequest,
     AnalyzeResponse,
     ConstraintPlot2D,
     FeasibleRegion1D,
     FeasibleRegion2D,
     ParsedProblemView,
 )
-from backend.tableau import build_tableau_if_supported
-from backend.tutor_graphical import build_graphical_tutor
+from backend.tableau import TableauOptions, build_tableau_if_supported
+from backend.tableau_verify import verify_tableau_against_solver
+from backend.tutor_graphical import build_3d_vertex_tutor, build_graphical_tutor
 
 
 def _constraints_for_plot(mat: LinprogMatrices, labels: list[str]) -> list[ConstraintPlot2D]:
@@ -68,7 +70,12 @@ def _stack_inequalities(mat: LinprogMatrices) -> tuple[np.ndarray, np.ndarray]:
     return np.vstack(rows), np.array(rhs, dtype=float)
 
 
-def analyze_source(source: str) -> AnalyzeResponse:
+def analyze_source(request: AnalyzeRequest | str) -> AnalyzeResponse:
+    if isinstance(request, str):
+        body = AnalyzeRequest(source=request)
+    else:
+        body = request
+    source = body.source
     try:
         parsed, plot_labels = parse_lp_source(source)
         mat = build_matrices(parsed)
@@ -87,6 +94,7 @@ def analyze_source(source: str) -> AnalyzeResponse:
     )
 
     resp = AnalyzeResponse(
+        modeling_notes=list(parsed.modeling_notes),
         problem=problem,
         solve_status=solve.status,
         optimal_value=solve.fun if solve.status == "optimal" else None,
@@ -126,12 +134,41 @@ def analyze_source(source: str) -> AnalyzeResponse:
         if verts_np.shape[0] > 0:
             verts_np = order_polygon_ccw(verts_np)
         resp.tutor_steps = build_graphical_tutor(mat, solve, verts_np)
+    elif n == 3 and A_all.size > 0 and solve.status == "optimal" and solve.x is not None:
+        fr = resp.feasible_region
+        v3: list[list[float]] = []
+        if isinstance(fr, dict) and fr.get("kind") == "polyhedron_3d":
+            v3 = fr.get("vertices") or []
+        if v3:
+            resp.tutor_steps = build_3d_vertex_tutor(mat, solve, np.asarray(v3, dtype=float))
 
     if solve.status == "optimal":
-        tw, tstat = build_tableau_if_supported(mat)
+        topts = TableauOptions(
+            tableau_mode=body.tableau_mode,
+            use_blands_rule=body.use_blands_rule,
+            big_m_value=body.big_m_value,
+        )
+        tw, tstat = build_tableau_if_supported(mat, topts)
         if tw is not None and tstat == "ok":
             resp.tableau_walkthrough = tw
             resp.tableau_status = "ok"
+            if solve.x is not None:
+                try:
+                    ok_v, msg_v = verify_tableau_against_solver(
+                        mat,
+                        tw,
+                        np.asarray(solve.x, dtype=float),
+                        resp.optimal_value,
+                    )
+                    resp.tableau_verified = ok_v
+                    resp.tableau_verify_message = msg_v
+                    if not ok_v and msg_v:
+                        resp.modeling_notes = [*list(resp.modeling_notes), f"Tableau cross-check: {msg_v}"]
+                except Exception as exc:  # noqa: BLE001
+                    resp.tableau_verified = False
+                    note = f"Tableau verification error: {exc}"
+                    resp.tableau_verify_message = note
+                    resp.modeling_notes = [*list(resp.modeling_notes), note]
         else:
             resp.tableau_status = "not_supported_yet"
             if tw is None and tstat:

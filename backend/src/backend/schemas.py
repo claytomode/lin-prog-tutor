@@ -5,8 +5,20 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
+TableauMode = Literal["auto", "primal", "dual", "big_m"]
+
+
 class AnalyzeRequest(BaseModel):
     source: str = Field(..., description="LP problem text (DSL)")
+    tableau_mode: TableauMode = Field(
+        "auto",
+        description="Tableau pedagogy: auto (default paths), primal two-phase, dual simplex, or big-M.",
+    )
+    use_blands_rule: bool = Field(False, description="Use Bland’s rule for entering/leaving ties (primal/dual).")
+    big_m_value: float | None = Field(
+        None,
+        description="Override M for big_m mode; when null, a scale-aware default is chosen.",
+    )
 
 
 class ConstraintPlot2D(BaseModel):
@@ -56,7 +68,7 @@ class TableauStep(BaseModel):
 
 
 class TableauWalkthrough(BaseModel):
-    sense_for_tableau: Literal["maximize"]
+    sense_for_tableau: Literal["maximize", "minimize"]
     initial_narrative: str
     steps: list[TableauStep]
     outcome: Literal["optimal", "unbounded", "infeasible", "max_iterations"]
@@ -65,6 +77,7 @@ class TableauWalkthrough(BaseModel):
 class AnalyzeResponse(BaseModel):
     ok: bool = True
     error: str | None = None
+    modeling_notes: list[str] = Field(default_factory=list)
     problem: ParsedProblemView | None = None
     solve_status: Literal["optimal", "infeasible", "unbounded", "not_attempted"] | None = None
     optimal_value: float | None = None
@@ -76,3 +89,12 @@ class AnalyzeResponse(BaseModel):
     tableau_walkthrough: TableauWalkthrough | None = None
     tableau_status: Literal["ok", "not_supported_yet", "skipped"] = "skipped"
     tableau_message: str | None = None
+    tableau_verified: bool | None = Field(
+        None,
+        description="When a tableau walkthrough is returned, True if the final BFS matches "
+        "HiGHS objective and primal feasibility within tolerance.",
+    )
+    tableau_verify_message: str | None = Field(
+        None,
+        description="Set when verification fails, or an informational note (e.g. non-unique optimum).",
+    )

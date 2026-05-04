@@ -1,6 +1,7 @@
 {
   "name": "lin-prog-tutor-frontend",
   "private": true,
+  "packageManager": "bun@1.2.23",
   "version": "0.1.0",
   "type": "module",
   "scripts": {

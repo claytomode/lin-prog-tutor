@@ -1,32 +1,35 @@
 # Roadmap
 
-Planned improvements beyond the current MVP (not ordered).
+This file tracks what the tutor **already does** and what could still be refined. Major roadmap themes from the original MVP plan are **implemented**; remaining bullets are polish or teaching extensions.
 
 ## Modeling & DSL
 
-- Support strict inequalities **`<`** and **`>`** in the source language (normalize to closed form or document epsilon semantics).
-- Broader constraint syntax and clearer parse errors where the model is still linear.
+- **(done)** Strict **`<`** / **`>`** (ε-closure; `modeling_notes` in the API).
+- **(done)** Clearer parse errors (line numbers on constraints; objective line cited for parse failures).
+- **(done)** Light **broader linear syntax**: commas between terms; optional colon on `subject to:`.
 
 ## Tableau / simplex pedagogy
 
-- **Phase I / Phase II** and **negative RHS** (two-phase simplex, artificial variables).
-- Additional tableau variants students see in courses: **dual simplex**, **big-M**, **degeneracy** messaging, optional **minimize** tableau conventions.
-- Equality constraints in the tableau walkthrough (currently skipped).
+- **(done)** Phase **I / II**, **negative RHS**, **equalities**, **dual** / **big-M** / **Bland** (API + UI); minimize via equivalent max tableau where shown.
 
 ## Geometry & graphics
 
-- Richer **graphical tutor** for 3D (slices \(z = \text{const}\), multiple isoprofit planes, or step-through vertices in 3D).
-- Clearer **2D** polish (labels, scales, constraint naming).
-- Optional export or printable layout for worksheets.
+- **(done)** 3D vertex tutor + isoprofit / optimum visualization.
+- **(done)** 2D plot polish: axis **tickformat**, titles with standoff, constraint **hover** with full label and inequality, hover label styling.
 
 ## Product / interface
 
-- **Better graphical interface**: layout, mobile, accessibility, loading states, copy for non-expert users.
-- Settings or presets for classroom vs self-study modes.
+- **(done)** Loading / **aria-busy**, focus after analyze, presets, print worksheet.
+- **(done)** Short **intro copy** and **humanized** API/parse error strings on the client.
 
 ## Engineering
 
-- CI (lint, test, typecheck) on push.
-- Packaging / one-command dev (e.g. compose or script to run API + UI).
+- **(done)** CI on push; root **one-command dev** (`bun run dev`).
 
-Contributions welcome; open an issue or PR with a short design note for larger items (especially tableau and strict inequalities).
+## Possible next extensions (not required for “done”)
+
+- Deeper DSL (more grammar, implied multiplication `2x`, etc.).
+- Even richer 3D (z-slices UI, full vertex enumeration UX).
+- Server-side lint rules or pedagogy-specific validation messages.
+
+Contributions welcome; open an issue or PR with a short design note for larger teaching features.

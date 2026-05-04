@@ -1,0 +1,15 @@
+{
+  "name": "lin-prog-tutor",
+  "private": true,
+  "packageManager": "bun@1.2.23",
+  "scripts": {
+    "dev": "concurrently -k -n api,ui -c blue,green \"uv run --directory backend uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000\" \"bun --cwd frontend run dev\"",
+    "dev:api": "uv run --directory backend uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:ui": "bun --cwd frontend run dev",
+    "check": "bun --cwd frontend run check",
+    "build": "bun --cwd frontend run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
