@@ -219,3 +219,85 @@ x >= 0
     assert not r.ok
     assert r.error is not None
     assert "line 1" in r.error and "objective" in r.error
+
+
+def test_structured_error_empty_problem():
+    r = analyze_source("")
+    assert not r.ok
+    assert r.error_code == "EMPTY_PROBLEM"
+    assert r.error_hint is not None
+    assert "objective" in r.error_hint.lower()
+
+
+def test_structured_error_missing_subject_to():
+    src = """
+maximize x
+x <= 1
+"""
+    r = analyze_source(src)
+    assert not r.ok
+    assert r.error_code == "MISSING_SUBJECT_TO"
+    assert r.error_hint is not None
+    assert "subject to" in r.error_hint.lower()
+
+
+def test_structured_error_missing_comparator_contains_context():
+    src = """
+maximize x
+subject to
+x y
+"""
+    r = analyze_source(src)
+    assert not r.ok
+    assert r.error_code == "MISSING_COMPARATOR"
+    assert r.error_context is not None
+    assert r.error_context.get("section") == "constraint"
+    assert r.error_context.get("line") == 3
+
+
+def test_variable_domains_inline_trigger_mip_not_implemented():
+    src = """
+maximize 3 x + 2 y
+subject to
+x + y <= 4
+variables x: integer, y: continuous
+"""
+    r = analyze_source(AnalyzeRequest(source=src.strip(), problem_class="auto"))
+    assert not r.ok
+    assert r.error_code == "MIP_NOT_IMPLEMENTED"
+    assert r.error_context is not None
+    assert r.error_context.get("problem_class") == "milp"
+    assert r.error_context.get("is_mip") is True
+    diag = r.error_context.get("mip_diagnostics")
+    assert isinstance(diag, dict)
+    assert diag.get("mip_backend") == "stub"
+
+
+def test_variable_domains_block_parse_error_has_stable_code():
+    src = """
+maximize x + y
+subject to
+x + y <= 4
+variables:
+x binary
+y integerish
+"""
+    r = analyze_source(src)
+    assert not r.ok
+    assert r.error_code == "UNKNOWN_VARIABLE_DOMAIN"
+    assert r.error_hint is not None
+    assert "continuous" in r.error_hint
+    assert r.error_context is not None
+    assert r.error_context.get("section") == "variables"
+
+
+def test_problem_class_lp_rejects_mip_domains():
+    src = """
+maximize x
+subject to
+x <= 4
+variables x integer
+"""
+    r = analyze_source(AnalyzeRequest(source=src.strip(), problem_class="lp"))
+    assert not r.ok
+    assert r.error_code == "PROBLEM_CLASS_MISMATCH"

@@ -6,6 +6,7 @@
     "dev": "concurrently -k -n api,ui -c blue,green \"uv run --directory backend uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000\" \"cd frontend && bun run dev\"",
     "dev:api": "uv run --directory backend uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000",
     "dev:ui": "cd frontend && bun run dev",
+    "api:types": "cd frontend && bun run api:types",
     "check": "cd frontend && bun run check",
     "build": "cd frontend && bun run build",
     "readme:screenshots": "node scripts/readme-screenshots.mjs",

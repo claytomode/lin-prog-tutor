@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from backend.model import LinprogMatrices, SolveResult
+from backend.model import LinprogMatrices
+from backend.solver import SolveResult
 from backend.schemas import TutorStep
 
 

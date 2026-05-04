@@ -6,10 +6,16 @@ from pydantic import BaseModel, Field
 
 
 TableauMode = Literal["auto", "primal", "dual", "big_m"]
+ProblemClass = Literal["auto", "lp", "milp"]
+VariableDomain = Literal["continuous", "integer", "binary"]
 
 
 class AnalyzeRequest(BaseModel):
     source: str = Field(..., description="LP problem text (DSL)")
+    problem_class: ProblemClass = Field(
+        "auto",
+        description="Requested problem class. Use auto to infer LP vs MILP from variable domains.",
+    )
     tableau_mode: TableauMode = Field(
         "auto",
         description="Tableau pedagogy: auto (default paths), primal two-phase, dual simplex, or big-M.",
@@ -52,6 +58,9 @@ class TutorStep(BaseModel):
 class ParsedProblemView(BaseModel):
     sense: Literal["maximize", "minimize"]
     variables: list[str]
+    variable_domains: dict[str, VariableDomain] = Field(default_factory=dict)
+    problem_class: Literal["lp", "milp"] = "lp"
+    is_mip: bool = False
     objective: dict[str, float]
     constraint_labels: list[str]
 
@@ -77,7 +86,25 @@ class TableauWalkthrough(BaseModel):
 class AnalyzeResponse(BaseModel):
     ok: bool = True
     error: str | None = None
+    error_code: str | None = Field(
+        None,
+        description="Stable machine-readable error code when ok=false.",
+    )
+    error_hint: str | None = Field(
+        None,
+        description="Optional actionable hint for end users when ok=false.",
+    )
+    error_context: dict[str, Any] | None = Field(
+        None,
+        description="Optional structured context for debugging or UI affordances.",
+    )
     modeling_notes: list[str] = Field(default_factory=list)
+    problem_class: Literal["lp", "milp"] | None = None
+    is_mip: bool | None = None
+    mip_diagnostics: dict[str, Any] | None = Field(
+        None,
+        description="Optional diagnostics placeholder for MIP solver-specific details.",
+    )
     problem: ParsedProblemView | None = None
     solve_status: Literal["optimal", "infeasible", "unbounded", "not_attempted"] | None = None
     optimal_value: float | None = None

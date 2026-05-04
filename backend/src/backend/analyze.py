@@ -8,7 +8,7 @@ from backend.geometry import (
     order_polygon_ccw,
     vertices_2d_halfspaces,
 )
-from backend.model import LinprogMatrices, build_matrices, point_dict, solve_lp
+from backend.model import LinprogMatrices, build_matrices, point_dict
 from backend.parser import ParseError, parse_lp_source
 from backend.schemas import (
     AnalyzeRequest,
@@ -18,9 +18,26 @@ from backend.schemas import (
     FeasibleRegion2D,
     ParsedProblemView,
 )
+from backend.solver import solve_lp, solve_mip
 from backend.tableau import TableauOptions, build_tableau_if_supported
 from backend.tableau_verify import verify_tableau_against_solver
 from backend.tutor_graphical import build_3d_vertex_tutor, build_graphical_tutor
+
+
+def _error_response(
+    *,
+    code: str,
+    message: str,
+    hint: str | None = None,
+    context: dict[str, object] | None = None,
+) -> AnalyzeResponse:
+    return AnalyzeResponse(
+        ok=False,
+        error=message,
+        error_code=code,
+        error_hint=hint,
+        error_context=context,
+    )
 
 
 def _constraints_for_plot(mat: LinprogMatrices, labels: list[str]) -> list[ConstraintPlot2D]:
@@ -80,21 +97,61 @@ def analyze_source(request: AnalyzeRequest | str) -> AnalyzeResponse:
         parsed, plot_labels = parse_lp_source(source)
         mat = build_matrices(parsed)
     except ParseError as exc:
-        return AnalyzeResponse(ok=False, error=str(exc))
+        return _error_response(
+            code=exc.code,
+            message=str(exc),
+            hint=exc.hint,
+            context=exc.context,
+        )
+    except ValueError as exc:
+        msg = str(exc)
+        if msg == "no variables":
+            return _error_response(
+                code="NO_VARIABLES",
+                message=msg,
+                hint="Use variable terms like `x`, `y`, or `z` in objective/constraints.",
+            )
+        return _error_response(code="MODEL_ERROR", message=f"model error: {exc}")
     except Exception as exc:  # noqa: BLE001
-        return AnalyzeResponse(ok=False, error=f"model error: {exc}")
+        return _error_response(code="MODEL_ERROR", message=f"model error: {exc}")
 
-    solve = solve_lp(mat)
+    inferred_problem_class = "milp" if parsed.is_mip else "lp"
+    requested_problem_class = body.problem_class
+    if requested_problem_class == "lp" and parsed.is_mip:
+        return _error_response(
+            code="PROBLEM_CLASS_MISMATCH",
+            message="requested LP class but integer/binary variable domains were declared",
+            hint="Set problem_class to `auto` or `milp`, or remove integer/binary domains.",
+        )
+
+    solve = solve_mip(mat) if parsed.is_mip else solve_lp(mat)
+    if solve.error_code is not None:
+        return _error_response(
+            code=solve.error_code,
+            message=solve.message,
+            hint=solve.error_hint,
+            context={
+                "problem_class": inferred_problem_class,
+                "is_mip": parsed.is_mip,
+                "mip_diagnostics": solve.diagnostics,
+            },
+        )
 
     problem = ParsedProblemView(
         sense=parsed.objective_sense,
         variables=mat.var_names,
+        variable_domains=mat.var_domains,
+        problem_class=inferred_problem_class,
+        is_mip=parsed.is_mip,
         objective={v: float(c) for v, c in parsed.objective.items()},
         constraint_labels=plot_labels,
     )
 
     resp = AnalyzeResponse(
         modeling_notes=list(parsed.modeling_notes),
+        problem_class=inferred_problem_class,
+        is_mip=parsed.is_mip,
+        mip_diagnostics=solve.diagnostics,
         problem=problem,
         solve_status=solve.status,
         optimal_value=solve.fun if solve.status == "optimal" else None,
