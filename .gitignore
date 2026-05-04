@@ -9,3 +9,5 @@ package-lock.json
 frontend/.svelte-kit/
 frontend/build/
 dist/
+test-results/
+playwright-report/

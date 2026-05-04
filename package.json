@@ -3,13 +3,16 @@
   "private": true,
   "packageManager": "bun@1.2.23",
   "scripts": {
-    "dev": "concurrently -k -n api,ui -c blue,green \"uv run --directory backend uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000\" \"bun --cwd frontend run dev\"",
+    "dev": "concurrently -k -n api,ui -c blue,green \"uv run --directory backend uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000\" \"cd frontend && bun run dev\"",
     "dev:api": "uv run --directory backend uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000",
-    "dev:ui": "bun --cwd frontend run dev",
-    "check": "bun --cwd frontend run check",
-    "build": "bun --cwd frontend run build"
+    "dev:ui": "cd frontend && bun run dev",
+    "check": "cd frontend && bun run check",
+    "build": "cd frontend && bun run build",
+    "readme:screenshots": "node scripts/readme-screenshots.mjs",
+    "readme:screenshots:install": "playwright install chromium"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "playwright": "^1.59.0"
   }
 }
