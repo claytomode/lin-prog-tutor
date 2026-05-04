@@ -2,27 +2,33 @@ from __future__ import annotations
 
 import numpy as np
 
-from backend.geometry import (
+from backend.lp.geometry import (
+    discrete_feasible_points_2d,
     feasible_interval_1d,
     geometry_3d_vertices,
     order_polygon_ccw,
     vertices_2d_halfspaces,
 )
-from backend.mip_plot import discrete_feasible_points_2d
-from backend.model import LinprogMatrices, build_matrices, point_dict
-from backend.parser import ParseError, merge_request_variable_domains, parse_lp_source
+from backend.lp.grobner_ilp.standard_form import build_nonneg_equality_ilp
+from backend.lp.grobner_ilp.toric_solve import compute_grobner_walkthrough
+from backend.lp.model import LinprogMatrices, build_matrices, point_dict
+from backend.lp.parsing import ParseError, merge_request_variable_domains, parse_lp_source
 from backend.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
     ConstraintPlot2D,
     FeasibleRegion1D,
     FeasibleRegion2D,
+    GrobnerWalkthrough,
     ParsedProblemView,
 )
-from backend.solver import solve_dispatch
-from backend.tableau import TableauOptions, build_tableau_if_supported
-from backend.tableau_verify import verify_tableau_against_solver
-from backend.tutor_graphical import build_3d_vertex_tutor, build_graphical_tutor
+from backend.lp.solver import solve_dispatch
+from backend.lp.tableau import (
+    TableauOptions,
+    build_tableau_if_supported,
+    verify_tableau_against_solver,
+)
+from backend.lp.tutor import build_3d_vertex_tutor, build_graphical_tutor
 
 
 def _error_response(
@@ -261,5 +267,28 @@ def analyze_source(request: AnalyzeRequest | str) -> AnalyzeResponse:
         )
     else:
         resp.tableau_status = "skipped"
+
+    if parsed.is_mip:
+        resp.mip_method = body.mip_method
+        if body.mip_method == "grobner":
+            try:
+                A_g, b_g, c_g, names_g, grob_notes = build_nonneg_equality_ilp(mat, parsed)
+                scipy_pt = resp.optimal_point if resp.solve_status == "optimal" else None
+                resp.grobner_walkthrough = compute_grobner_walkthrough(
+                    A_g,
+                    b_g,
+                    np.asarray(c_g, dtype=int),
+                    names_g,
+                    scipy_pt,
+                    model_notes=grob_notes,
+                )
+                if grob_notes:
+                    resp.modeling_notes = [*list(resp.modeling_notes), *grob_notes]
+            except ValueError as exc:
+                resp.grobner_walkthrough = GrobnerWalkthrough(
+                    initial_narrative=str(exc),
+                    steps=[],
+                    outcome="unsupported_model",
+                )
 
     return resp

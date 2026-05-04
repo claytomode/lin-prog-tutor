@@ -13,8 +13,18 @@ marked.setOptions({
   gfm: true,
 });
 
+/**
+ * `marked-katex-extension` only tokenizes `$...$` / `$$...$$`, not LaTeX `\(...\)` / `\[...\]`.
+ * Normalize so chapter markdown can use either style.
+ */
+function normalizeLatexDelimiters(markdown: string): string {
+  return markdown
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_, inner: string) => `$$\n${inner.trim()}\n$$`)
+    .replace(/\\\(([\s\S]*?)\\\)/g, (_, inner: string) => `$${inner.trim()}$`);
+}
+
 export function renderMarkdownToHtml(markdown: string): string {
-  const rawHtml = marked.parse(markdown) as string;
+  const rawHtml = marked.parse(normalizeLatexDelimiters(markdown)) as string;
   return sanitizeHtml(rawHtml, {
     allowedTags: [
       ...sanitizeHtml.defaults.allowedTags,

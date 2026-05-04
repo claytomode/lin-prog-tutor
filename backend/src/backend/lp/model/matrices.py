@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from backend.parser import ParsedLP, VarDomain, declared_variables
+from backend.lp.parsing import ParsedLP, VarDomain, declared_variables
 
 
 @dataclass

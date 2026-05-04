@@ -27,7 +27,7 @@ After this chapter, you should be able to:
 2. **Choose options** (tableau mode, Bland’s rule, optional Big M) in the details section if you are teaching the tableau path.
 3. **Analyze** sends the text to the API, which parses, builds matrices, and calls the solver.
 4. **Results** show status, objective value, and a point (when optimal). For two variables you get a 2D feasible polygon and constraint lines; for three, a 3D polyhedron sketch when available. For **more than three** variables, the region is not drawn (the problem still solves in full dimension).
-5. **Tutor and tableau** apply to **continuous** LPs only. Mixed-integer models are still solved numerically (HiGHS MILP via SciPy), but the tableau and 2D/3D vertex tutors stay disabled because they teach continuous simplex geometry—see [Intro to integer optimization](/docs/intro-to-integer-optimization).
+5. **Tutor and tableau** apply to **continuous** LPs only. Mixed-integer models are still solved numerically (HiGHS MILP via SciPy), but the tableau and 2D/3D vertex tutors stay disabled because they teach continuous simplex geometry—see [Intro to integer optimization](/docs/intro-to-integer-optimization). For a small subset of all-integer MILPs you can also enable an optional **Gröbner normal-form walkthrough** (algebraic trace only; the reported optimum still comes from HiGHS)—see [Gröbner bases and integer programming](/docs/grobner-integer-programming).
 
 ## Try it (deep links)
 

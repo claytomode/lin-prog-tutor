@@ -1,7 +1,7 @@
 <script lang="ts">
   import { resolveRoute } from "$app/paths";
   import type { StudyPreset } from "$lib/lp/constants.js";
-  import type { ProblemClass, TableauMode, VariableDomain } from "$lib/lp/types.js";
+  import type { MipSolveMethod, ProblemClass, TableauMode, VariableDomain } from "$lib/lp/types.js";
 
   let {
     source = $bindable(),
@@ -12,6 +12,7 @@
     bigMText = $bindable(""),
     studyPreset = $bindable<StudyPreset>("default"),
     problemClass = $bindable<ProblemClass>("auto"),
+    mipMethod = $bindable<MipSolveMethod>("scipy_milp"),
     variableDomains = $bindable<Record<string, VariableDomain>>({}),
     domainVariableNames = $bindable<string[]>([]),
     onAnalyze,
@@ -26,6 +27,7 @@
     bigMText: string;
     studyPreset: StudyPreset;
     problemClass: ProblemClass;
+    mipMethod: MipSolveMethod;
     variableDomains: Record<string, VariableDomain>;
     domainVariableNames: string[];
     onAnalyze: () => void;
@@ -96,6 +98,17 @@
           placeholder="Default from model scale"
           autocomplete="off"
         />
+      {/if}
+      {#if problemClass === "milp" || problemClass === "auto"}
+        <label for="mip-method">MILP algebra trace (optional)</label>
+        <select id="mip-method" bind:value={mipMethod}>
+          <option value="scipy_milp">SciPy HiGHS MILP (default)</option>
+          <option value="grobner">Gröbner normal form (small nonnegative equality IPs; see docs)</option>
+        </select>
+        <p class="muted small domain-hint">
+          Gröbner mode still uses SciPy for the reported optimum; it adds a step-by-step toric ideal trace
+          when the model fits the encoding (all integer, nonnegative A and b after reformulation).
+        </p>
       {/if}
     </div>
   </details>

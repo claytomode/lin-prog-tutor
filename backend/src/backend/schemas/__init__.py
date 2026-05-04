@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 TableauMode = Literal["auto", "primal", "dual", "big_m"]
 ProblemClass = Literal["auto", "lp", "milp"]
 VariableDomain = Literal["continuous", "integer", "binary"]
+MipSolveMethod = Literal["scipy_milp", "grobner"]
 
 
 class AnalyzeRequest(BaseModel):
@@ -28,6 +29,13 @@ class AnalyzeRequest(BaseModel):
     big_m_value: float | None = Field(
         None,
         description="Override M for big_m mode; when null, a scale-aware default is chosen.",
+    )
+    mip_method: MipSolveMethod = Field(
+        "scipy_milp",
+        description=(
+            "For MILP: use SciPy HiGHS MILP (default), or a toric / Gröbner normal-form walkthrough "
+            "for small nonnegative equality integer programs (algebraic trace; see in-app docs)."
+        ),
     )
 
 
@@ -87,6 +95,29 @@ class TableauWalkthrough(BaseModel):
     outcome: Literal["optimal", "unbounded", "infeasible", "max_iterations"]
 
 
+class GrobnerStep(BaseModel):
+    index: int
+    title: str
+    detail: str
+
+
+class GrobnerWalkthrough(BaseModel):
+    initial_narrative: str
+    steps: list[GrobnerStep]
+    outcome: Literal["ok", "infeasible_normal_form", "computation_failed", "unsupported_model"]
+    grobner_basis_strs: list[str] = Field(default_factory=list)
+    remainder_str: str | None = None
+    point_from_normal_form: dict[str, int] | None = None
+    agrees_with_scipy_mip: bool | None = Field(
+        None,
+        description="Whether NF exponents match SciPy MILP on original (non-slack) variables when comparable.",
+    )
+    optimality_note: str | None = Field(
+        None,
+        description="Term-order caveat: lex exposition may not match the true integer minimum without a c-refined order.",
+    )
+
+
 class AnalyzeResponse(BaseModel):
     ok: bool = True
     error: str | None = None
@@ -138,4 +169,9 @@ class AnalyzeResponse(BaseModel):
     tableau_verify_message: str | None = Field(
         None,
         description="Set when verification fails, or an informational note (e.g. non-unique optimum).",
+    )
+    grobner_walkthrough: GrobnerWalkthrough | None = None
+    mip_method: MipSolveMethod | None = Field(
+        None,
+        description="Echo of AnalyzeRequest.mip_method for MILP responses.",
     )
