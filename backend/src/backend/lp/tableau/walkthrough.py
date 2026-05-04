@@ -5,7 +5,7 @@ from typing import Literal
 
 import numpy as np
 
-from backend.model import LinprogMatrices
+from backend.lp.model import LinprogMatrices
 from backend.schemas import TableauStep, TableauWalkthrough
 
 Tol = 1e-9

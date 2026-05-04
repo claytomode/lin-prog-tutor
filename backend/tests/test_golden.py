@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from backend.analyze import analyze_source
-from backend.parser import STRICT_EPS
+from backend.lp.analyze import analyze_source
+from backend.lp.parsing import STRICT_EPS
 from backend.schemas import AnalyzeRequest, AnalyzeResponse
 
 

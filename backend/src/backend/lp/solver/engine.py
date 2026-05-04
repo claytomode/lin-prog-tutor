@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, linprog, milp
 
-from backend.model import LinprogMatrices
+from backend.lp.model import LinprogMatrices
 
 
 @dataclass

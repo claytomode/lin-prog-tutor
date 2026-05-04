@@ -23,6 +23,15 @@ Use this section like a guided bibliography: pick one text per level and go deep
 - Nemhauser and Wolsey, *Integer and Combinatorial Optimization*  
   Why read: foundational text for integer formulations and algorithmic ideas.
 
+## Algebraic / Gröbner viewpoint (optional MILP trace in this app)
+
+- David Cox, John Little, Donal O’Shea, *Ideals, Varieties, and Algorithms* — integer programming and Gröbner bases (typically **Chapter 8**).  
+  Why read: the standard “CLO” reference behind the toric/monomial encoding used in the walkthrough.  
+  In-app overview: [Gröbner bases and integer programming](/docs/grobner-integer-programming).
+- P. Conti and C. Traverso, *Buchberger algorithm and integer programming* (AAECC-9, LNCS 539, Springer, 1991).  
+  Why read: the original algorithmic bridge from IP to Gröbner bases and normal forms.  
+  [Springer chapter](https://link.springer.com/chapter/10.1007/3-540-54522-0_102).
+
 ## Practical solver references
 
 - [HiGHS documentation](https://highs.dev/)  

@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "api:types": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/lib/api/openapi.ts",
+    "api:types": "openapi-typescript http://127.0.0.1:8010/openapi.json -o src/lib/api/openapi.ts",
     "test:unit": "bun test src/**/*.test.ts"
   },
   "devDependencies": {

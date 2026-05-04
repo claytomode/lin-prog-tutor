@@ -30,8 +30,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Analyze */
-        post: operations["analyze_api_lp_analyze_post"];
+        /** Analyze Lp */
+        post: operations["analyze_lp_api_lp_analyze_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -42,8 +42,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** VariableDomain */
-        VariableDomain: "continuous" | "integer" | "binary";
         /** AnalyzeRequest */
         AnalyzeRequest: {
             /**
@@ -53,17 +51,17 @@ export interface components {
             source: string;
             /**
              * Problem Class
-             * @description Request LP vs MILP handling; auto infers from domains.
+             * @description Requested problem class. Use auto to infer LP vs MILP from variable domains.
              * @default auto
              * @enum {string}
              */
             problem_class: "auto" | "lp" | "milp";
             /**
              * Variable Domains
-             * @description Optional client domains merged after parsing (override source declarations).
+             * @description Optional domains from the client; merged after parsing and override inline declarations.
              */
             variable_domains?: {
-                [key: string]: components["schemas"]["VariableDomain"];
+                [key: string]: "continuous" | "integer" | "binary";
             } | null;
             /**
              * Tableau Mode
@@ -83,6 +81,13 @@ export interface components {
              * @description Override M for big_m mode; when null, a scale-aware default is chosen.
              */
             big_m_value?: number | null;
+            /**
+             * Mip Method
+             * @description For MILP: use SciPy HiGHS MILP (default), or a toric / Gröbner normal-form walkthrough for small nonnegative equality integer programs (algebraic trace; see in-app docs).
+             * @default scipy_milp
+             * @enum {string}
+             */
+            mip_method: "scipy_milp" | "grobner";
         };
         /** AnalyzeResponse */
         AnalyzeResponse: {
@@ -112,22 +117,31 @@ export interface components {
             } | null;
             /** Modeling Notes */
             modeling_notes?: string[];
-            /**
-             * Problem Class
-             * @enum {string}
-             */
+            /** Problem Class */
             problem_class?: ("lp" | "milp") | null;
             /** Is Mip */
             is_mip?: boolean | null;
-            /** MIP diagnostics placeholder */
+            /**
+             * Mip Diagnostics
+             * @description Optional diagnostics placeholder for MIP solver-specific details.
+             */
             mip_diagnostics?: {
                 [key: string]: unknown;
             } | null;
-            /** MIP optimality gap when reported */
+            /**
+             * Mip Gap
+             * @description Optimality gap when MIP solver reports it.
+             */
             mip_gap?: number | null;
-            /** Branch-and-bound node count when reported */
+            /**
+             * Mip Node Count
+             * @description Branch-and-bound node count when available.
+             */
             mip_node_count?: number | null;
-            /** Whether the MIP solver stopped on a time limit */
+            /**
+             * Mip Time Limit Hit
+             * @description True if the MIP solver stopped due to a time limit.
+             */
             mip_time_limit_hit?: boolean | null;
             problem?: components["schemas"]["ParsedProblemView"] | null;
             /** Solve Status */
@@ -148,10 +162,13 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /**
-             * MIP Discrete Points 2D
-             * @description For 2-variable MILP with both axes discrete: feasible lattice points.
+             * Mip Discrete Points 2D
+             * @description For 2-variable MILP with both axes discrete: lattice points feasible for Ax<=b.
              */
-            mip_discrete_points_2d?: [number, number][];
+            mip_discrete_points_2d?: [
+                number,
+                number
+            ][];
             /** Geometry Note */
             geometry_note?: string | null;
             /**
@@ -178,6 +195,12 @@ export interface components {
              * @description Set when verification fails, or an informational note (e.g. non-unique optimum).
              */
             tableau_verify_message?: string | null;
+            grobner_walkthrough?: components["schemas"]["GrobnerWalkthrough"] | null;
+            /**
+             * Mip Method
+             * @description Echo of AnalyzeRequest.mip_method for MILP responses.
+             */
+            mip_method?: ("scipy_milp" | "grobner") | null;
         };
         /** ConstraintPlot2D */
         ConstraintPlot2D: {
@@ -229,6 +252,45 @@ export interface components {
              */
             clipped_to_box: boolean;
         };
+        /** GrobnerStep */
+        GrobnerStep: {
+            /** Index */
+            index: number;
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string;
+        };
+        /** GrobnerWalkthrough */
+        GrobnerWalkthrough: {
+            /** Initial Narrative */
+            initial_narrative: string;
+            /** Steps */
+            steps: components["schemas"]["GrobnerStep"][];
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "ok" | "infeasible_normal_form" | "computation_failed" | "unsupported_model";
+            /** Grobner Basis Strs */
+            grobner_basis_strs?: string[];
+            /** Remainder Str */
+            remainder_str?: string | null;
+            /** Point From Normal Form */
+            point_from_normal_form?: {
+                [key: string]: number;
+            } | null;
+            /**
+             * Agrees With Scipy Mip
+             * @description Whether NF exponents match SciPy MILP on original (non-slack) variables when comparable.
+             */
+            agrees_with_scipy_mip?: boolean | null;
+            /**
+             * Optimality Note
+             * @description Term-order caveat: lex exposition may not match the true integer minimum without a c-refined order.
+             */
+            optimality_note?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -244,15 +306,19 @@ export interface components {
             /** Variables */
             variables: string[];
             /** Variable Domains */
-            variable_domains: {
-                [key: string]: components["schemas"]["VariableDomain"];
+            variable_domains?: {
+                [key: string]: "continuous" | "integer" | "binary";
             };
             /**
              * Problem Class
+             * @default lp
              * @enum {string}
              */
             problem_class: "lp" | "milp";
-            /** Is Mip */
+            /**
+             * Is Mip
+             * @default false
+             */
             is_mip: boolean;
             /** Objective */
             objective: {
@@ -352,7 +418,7 @@ export interface operations {
             };
         };
     };
-    analyze_api_lp_analyze_post: {
+    analyze_lp_api_lp_analyze_post: {
         parameters: {
             query?: never;
             header?: never;

@@ -2,6 +2,7 @@
   import { page } from "$app/state";
   import { onMount, tick } from "svelte";
   import FeasiblePlotPanel from "$lib/components/lp/FeasiblePlotPanel.svelte";
+  import GrobnerTrace from "$lib/components/lp/GrobnerTrace.svelte";
   import GraphicalTutor from "$lib/components/lp/GraphicalTutor.svelte";
   import HeroSection from "$lib/components/lp/HeroSection.svelte";
   import ModelingNotes from "$lib/components/lp/ModelingNotes.svelte";
@@ -16,7 +17,13 @@
   import { docExamples } from "$lib/lp/doc-examples.js";
   import type { StudyPreset } from "$lib/lp/constants.js";
   import { isPolyhedron3d } from "$lib/lp/feasible.js";
-  import type { AnalyzeResponse, ProblemClass, TableauMode, VariableDomain } from "$lib/lp/types.js";
+  import type {
+    AnalyzeResponse,
+    MipSolveMethod,
+    ProblemClass,
+    TableauMode,
+    VariableDomain,
+  } from "$lib/lp/types.js";
 
   let source = $state(defaultSource);
   let loading = $state(false);
@@ -29,8 +36,11 @@
   let bigMText = $state("");
   let studyPreset = $state<StudyPreset>("default");
   let problemClass = $state<ProblemClass>("auto");
+  let mipMethod = $state<MipSolveMethod>("scipy_milp");
   let variableDomains = $state<Record<string, VariableDomain>>({});
   let domainVariableNames = $state<string[]>([]);
+  /** Source text used when `domainVariableNames` / `variableDomains` were last filled from the API. */
+  let domainSyncSource = $state("");
   let presetHydrated = $state(false);
   let solutionHeadingEl = $state<HTMLHeadingElement | null>(null);
   let lastAppliedQuery = $state<string | null>(null);
@@ -87,15 +97,23 @@
     activeStep = 0;
     tableauStep = 0;
     try {
+      // Stale UI domains from a *previous* model would still be sent and override the DSL
+      // (`variables x integer, ...`). Only reuse them when the source matches the last sync.
+      if (domainSyncSource !== "" && source !== domainSyncSource) {
+        domainVariableNames = [];
+        variableDomains = {};
+      }
+
       const big_m_value = parseBigM();
       const payload: Record<string, unknown> = {
         source,
         problem_class: problemClass,
+        mip_method: mipMethod,
         tableau_mode: tableauMode,
         use_blands_rule: useBlandsRule,
         big_m_value,
       };
-      if (domainVariableNames.length > 0) {
+      if (domainVariableNames.length > 0 && source === domainSyncSource) {
         payload.variable_domains = Object.fromEntries(
           domainVariableNames.map((v) => [v, variableDomains[v] ?? "continuous"]),
         );
@@ -109,7 +127,7 @@
       try {
         raw = await res.json();
       } catch {
-        err = `Could not read response (HTTP ${res.status} ${res.statusText}). Is the API running on port 8000?`;
+        err = `Could not read response (HTTP ${res.status} ${res.statusText}). Is the API running (dev proxy → port 8010)?`;
         return;
       }
       if (!res.ok) {
@@ -150,6 +168,7 @@
         variableDomains = Object.fromEntries(
           json.problem.variables.map((v) => [v, dom[v] ?? "continuous"]),
         ) as Record<string, VariableDomain>;
+        domainSyncSource = source;
       }
       await tick();
       solutionHeadingEl?.focus();
@@ -183,6 +202,7 @@
         bind:bigMText
         bind:studyPreset
         bind:problemClass
+        bind:mipMethod
         bind:variableDomains
         bind:domainVariableNames
         onAnalyze={analyze}
@@ -190,6 +210,7 @@
           source = defaultSource;
           variableDomains = {};
           domainVariableNames = [];
+          domainSyncSource = "";
         }}
         onPrintWorksheet={printWorksheet}
       />
@@ -217,6 +238,10 @@
           />
         {:else if data.tableau_message}
           <TableauMessage message={data.tableau_message} />
+        {/if}
+
+        {#if data.grobner_walkthrough}
+          <GrobnerTrace walkthrough={data.grobner_walkthrough} />
         {/if}
       {:else}
         <ResultsSkeleton {loading} />

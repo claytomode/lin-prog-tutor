@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from backend.model import LinprogMatrices
-from backend.parser import VarDomain
+from backend.lp.model import LinprogMatrices
+from backend.lp.parsing import VarDomain
 
 # Guardrail so huge domains don't freeze the API.
 _MAX_AXIS_RANGE = 96

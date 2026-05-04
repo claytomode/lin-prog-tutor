@@ -38,6 +38,11 @@
       {/each}
     </p>
   {/if}
+  {#if data.is_mip && data.mip_method}
+    <p class="muted small mip-method">
+      MILP request path: <code>{data.mip_method}</code>
+    </p>
+  {/if}
   {#if data.is_mip && data.mip_diagnostics && Object.keys(data.mip_diagnostics).length > 0}
     <p class="muted small mip-diag">
       MIP diagnostics:

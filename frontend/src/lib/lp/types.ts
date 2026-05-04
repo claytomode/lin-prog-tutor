@@ -4,9 +4,13 @@ type Schemas = components["schemas"];
 
 export type AnalyzeRequest = Schemas["AnalyzeRequest"];
 export type AnalyzeResponse = Schemas["AnalyzeResponse"];
+export type MipSolveMethod = AnalyzeRequest["mip_method"];
 
 export type ProblemClass = AnalyzeRequest["problem_class"];
-export type VariableDomain = Schemas["VariableDomain"];
+/** Inlined in OpenAPI; keep aligned with `variable_domains` values. */
+export type VariableDomain = NonNullable<
+	NonNullable<AnalyzeRequest["variable_domains"]>[string]
+>;
 
 export type TableauMode = AnalyzeRequest["tableau_mode"];
 export type TutorStep = Schemas["TutorStep"];

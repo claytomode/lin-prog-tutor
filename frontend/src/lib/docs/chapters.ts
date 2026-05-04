@@ -1,5 +1,6 @@
 import errorCodeGlossaryMarkdown from "./content/error-code-glossary.md?raw";
 import furtherReadingMarkdown from "./content/further-reading.md?raw";
+import grobnerIpMarkdown from "./content/grobner-integer-programming.md?raw";
 import integerIntroMarkdown from "./content/intro-to-integer-optimization.md?raw";
 import lpVsIpMarkdown from "./content/lp-vs-ip-vs-milp.md?raw";
 import modelingPitfallsMarkdown from "./content/modeling-pitfalls.md?raw";
@@ -54,6 +55,12 @@ const chapterSources: ChapterSource[] = [
     title: "Intro to integer optimization",
     description: "LP relaxation and branch-and-bound at a concept level.",
     markdown: integerIntroMarkdown,
+  },
+  {
+    slug: "grobner-integer-programming",
+    title: "Gröbner bases and integer programming",
+    description: "How toric encoding, Gröbner bases, and normal-form reduction relate to the optional MILP trace.",
+    markdown: grobnerIpMarkdown,
   },
   {
     slug: "further-reading",
